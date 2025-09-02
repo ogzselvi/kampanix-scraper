@@ -1,0 +1,43 @@
+name: Maximum Kampanya Scraper
+
+# Ne zaman çalışacak?
+on:
+  # Manuel başlatma için
+  workflow_dispatch:
+  
+  # Otomatik: Her gün saat 09:00'da (Türkiye saati 12:00)
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  scrape-campaigns:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Kodu indir
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # 2. Node.js kur
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      # 3. Gerekli paketleri yükle
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install puppeteer cheerio axios
+      
+      # 4. Scraper'ı çalıştır
+      - name: Run scraper
+        run: node scraper.js
+      
+      # 5. Sonuçları GitHub'a kaydet
+      - name: Commit and push if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update campaigns: $(date +'%Y-%m-%d %H:%M')" && git push)
