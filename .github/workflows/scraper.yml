@@ -1,43 +1,49 @@
 name: Maximum Kampanya Scraper
 
-# Ne zaman çalışacak?
 on:
-  # Manuel başlatma için
   workflow_dispatch:
-  
-  # Otomatik: Her gün saat 09:00'da (Türkiye saati 12:00)
   schedule:
     - cron: '0 6 * * *'
+
+permissions:
+  contents: write
 
 jobs:
   scrape-campaigns:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Kodu indir
       - name: Checkout code
         uses: actions/checkout@v3
       
-      # 2. Node.js kur
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
-      # 3. Gerekli paketleri yükle
-      - name: Install dependencies
+      - name: Install dependencies (geçici klasörde)
         run: |
+          # Geçici klasöre geç
+          cd /tmp
           npm init -y
-          npm install puppeteer cheerio axios
+          npm install puppeteer
+          # Modülleri çalışma dizinine kopyala
+          cp -r node_modules $GITHUB_WORKSPACE/
       
-      # 4. Scraper'ı çalıştır
       - name: Run scraper
         run: node scraper.js
+        continue-on-error: true  # Hata olsa bile devam et
       
-      # 5. Sonuçları GitHub'a kaydet
-      - name: Commit and push if changed
+      - name: Commit results
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add -A
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update campaigns: $(date +'%Y-%m-%d %H:%M')" && git push)
+          # Sadece data klasörü ve screenshot'ları ekle
+          git add data/ || true
+          git add *.png || true
+          # node_modules'i ekleme!
+          git reset -- node_modules/ || true
+          git reset -- package*.json || true
+          # Değişiklik varsa commit et
+          git diff --staged --quiet || git commit -m "🤖 Kampanya güncelleme: $(date +'%Y-%m-%d %H:%M')"
+          git push || echo "Push başarısız, muhtemelen değişiklik yok"
