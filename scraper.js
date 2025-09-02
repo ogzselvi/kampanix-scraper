@@ -1,6 +1,9 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
+// Basit bekleme fonksiyonu
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function scrapeMaximum() {
   console.log('🚀 Maximum kampanya scraper başlıyor...');
   console.log('📅 Tarih:', new Date().toLocaleString('tr-TR'));
@@ -10,11 +13,7 @@ async function scrapeMaximum() {
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-web-security',
-      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      '--disable-dev-shm-usage'
     ]
   });
   
@@ -22,131 +21,98 @@ async function scrapeMaximum() {
     const page = await browser.newPage();
     console.log('📄 Sayfa oluşturuldu');
     
-    // Anti-bot ayarları
+    // User agent ayarla
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
-    // JavaScript özelliklerini değiştir (bot tespitini zorlaştır)
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => false,
-      });
-      Object.defineProperty(navigator, 'plugins', {
-        get: () => [1, 2, 3, 4, 5],
-      });
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['tr-TR', 'tr', 'en'],
-      });
-      window.chrome = {
-        runtime: {},
-      };
-      Object.defineProperty(navigator, 'permissions', {
-        get: () => ({
-          query: () => Promise.resolve({ state: 'granted' }),
-        }),
-      });
-    });
-    
-    // Extra headers ekle
-    await page.setExtraHTTPHeaders({
-      'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Cache-Control': 'max-age=0'
-    });
     
     console.log('🔗 Maximum sitesine bağlanılıyor...');
     
-    // Önce ana sayfaya git (daha doğal görünsün)
+    // Maximum kampanyalar sayfasına git
+    let pageLoaded = false;
+    let pageContent = null;
+    
     try {
-      await page.goto('https://www.maximum.com.tr', {
+      await page.goto('https://www.maximum.com.tr/kampanyalar', {
         waitUntil: 'domcontentloaded',
         timeout: 30000
       });
-      console.log('✅ Ana sayfaya gidildi');
-      await page.waitForTimeout(2000 + Math.random() * 3000);
-    } catch (e) {
-      console.log('⚠️ Ana sayfa yüklenemedi, direkt kampanyalara gidiliyor...');
-    }
-    
-    // Kampanyalar sayfasına git
-    try {
-      await page.goto('https://www.maximum.com.tr/kampanyalar', {
-        waitUntil: 'networkidle2',
-        timeout: 45000
-      });
-      console.log('✅ Kampanyalar sayfası yüklendi');
+      pageLoaded = true;
+      console.log('✅ Maximum kampanyalar sayfası yüklendi');
     } catch (error) {
-      console.log('❌ Maximum sitesine erişilemedi. Alternatif kaynak deneniyor...');
+      console.log('⚠️ Maximum sitesi erişim hatası:', error.message);
+      console.log('🔄 Alternatif: İş Bankası sitesi deneniyor...');
       
-      // ALTERNATIF: İş Bankası sitesinden Maximum kampanyalarını çek
-      console.log('🔄 İş Bankası sitesi deneniyor...');
-      await page.goto('https://www.isbank.com.tr/maximum-kredi-karti-kampanyalari', {
-        waitUntil: 'networkidle2',
-        timeout: 30000
-      });
-      console.log('✅ İş Bankası Maximum sayfası yüklendi');
+      try {
+        await page.goto('https://www.isbank.com.tr', {
+          waitUntil: 'domcontentloaded',
+          timeout: 30000
+        });
+        pageLoaded = true;
+        console.log('✅ İş Bankası sitesi yüklendi');
+      } catch (error2) {
+        console.log('❌ Her iki site de erişilemedi');
+      }
     }
     
-    // Sayfanın yüklenmesini bekle
-    await page.waitForTimeout(3000);
-    
-    const pageTitle = await page.title();
-    const pageUrl = await page.url();
-    console.log('📄 Sayfa başlığı:', pageTitle);
-    console.log('📍 Mevcut URL:', pageUrl);
-    
-    // HTML içeriğini kontrol et
-    const htmlLength = await page.evaluate(() => document.documentElement.innerHTML.length);
-    console.log('📊 HTML uzunluğu:', htmlLength);
-    
-    // Basit bir veri toplama (site engellemesi durumunda bile çalışır)
-    const pageData = await page.evaluate(() => {
-      // Sayfadaki tüm metni al
-      const allText = document.body.innerText || '';
+    // Sayfa yüklendiyse devam et
+    if (pageLoaded) {
+      // 3 saniye bekle (sayfa tam yüklensin)
+      await delay(3000);
       
-      // Başlıkları topla
-      const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4')).map(h => h.innerText);
+      const pageTitle = await page.title();
+      const pageUrl = await page.url();
+      console.log('📄 Sayfa başlığı:', pageTitle);
+      console.log('📍 URL:', pageUrl);
       
-      // Linkleri topla
-      const links = Array.from(document.querySelectorAll('a[href*="kampanya"], a[href*="detay"]')).map(a => ({
-        text: a.innerText,
-        href: a.href
-      }));
+      // Sayfadan veri topla
+      pageContent = await page.evaluate(() => {
+        // Tüm text içeriğini al
+        const bodyText = document.body ? document.body.innerText : '';
+        
+        // Kampanya kelimesi geçen elementleri bul
+        const campaignElements = Array.from(document.querySelectorAll('*')).filter(el => {
+          const text = el.innerText || el.textContent || '';
+          return text.toLowerCase().includes('kampanya') || 
+                 text.toLowerCase().includes('indirim') ||
+                 text.toLowerCase().includes('fırsat');
+        });
+        
+        // İlk 10 kampanya benzeri içeriği topla
+        const campaigns = [];
+        for (let i = 0; i < Math.min(10, campaignElements.length); i++) {
+          const el = campaignElements[i];
+          const text = (el.innerText || el.textContent || '').substring(0, 200);
+          if (text.length > 20) {
+            campaigns.push({
+              text: text,
+              tag: el.tagName
+            });
+          }
+        }
+        
+        return {
+          title: document.title,
+          url: window.location.href,
+          bodyTextLength: bodyText.length,
+          campaignElementCount: campaignElements.length,
+          sampleCampaigns: campaigns,
+          allLinks: Array.from(document.querySelectorAll('a')).slice(0, 20).map(a => ({
+            text: (a.innerText || '').substring(0, 50),
+            href: a.href
+          }))
+        };
+      });
       
-      return {
-        textLength: allText.length,
-        headingCount: headings.length,
-        linkCount: links.length,
-        sampleHeadings: headings.slice(0, 5),
-        sampleLinks: links.slice(0, 5)
-      };
-    });
-    
-    console.log('📊 Sayfa analizi:', JSON.stringify(pageData, null, 2));
-    
-    // Screenshot al (her durumda)
-    const screenshotPath = `screenshot-${Date.now()}.png`;
-    await page.screenshot({ 
-      path: screenshotPath,
-      fullPage: false 
-    });
-    console.log('📸 Screenshot alındı:', screenshotPath);
-    
-    // Basit kampanya verisi oluştur (demo için)
-    const campaigns = [
-      {
-        id: 'demo-1',
-        title: 'Maximum Demo Kampanya',
-        description: 'Site erişim sorunu nedeniyle demo veri',
-        bank: 'Maximum',
-        scrapedAt: new Date().toISOString()
-      }
-    ];
+      console.log('📊 Sayfa analizi tamamlandı');
+      console.log('- Text uzunluğu:', pageContent.bodyTextLength);
+      console.log('- Kampanya elementi sayısı:', pageContent.campaignElementCount);
+      
+      // Screenshot al
+      await page.screenshot({ 
+        path: 'screenshot.png',
+        fullPage: false
+      });
+      console.log('📸 Screenshot alındı');
+    }
     
     // data klasörünü oluştur
     if (!fs.existsSync('data')) {
@@ -154,52 +120,102 @@ async function scrapeMaximum() {
       console.log('📁 data klasörü oluşturuldu');
     }
     
-    // Sonuçları kaydet
+    // Kampanya verilerini hazırla (demo)
+    const campaigns = [];
+    
+    if (pageContent && pageContent.sampleCampaigns) {
+      // Gerçek veriden kampanya oluştur
+      pageContent.sampleCampaigns.forEach((item, index) => {
+        campaigns.push({
+          id: `campaign-${index + 1}`,
+          title: item.text.split('\n')[0] || `Kampanya ${index + 1}`,
+          description: item.text,
+          bank: 'Maximum',
+          source: pageContent.url,
+          scrapedAt: new Date().toISOString()
+        });
+      });
+    }
+    
+    // Eğer hiç kampanya bulunamadıysa demo veri ekle
+    if (campaigns.length === 0) {
+      campaigns.push({
+        id: 'demo-1',
+        title: 'Maximum Demo Kampanya',
+        description: 'Gerçek veri çekilemedi, demo kampanya',
+        bank: 'Maximum',
+        note: 'Site erişim sorunu veya veri bulunamadı',
+        scrapedAt: new Date().toISOString()
+      });
+    }
+    
+    // Ana veri dosyasını kaydet
     const result = {
+      success: pageLoaded,
       bank: 'Maximum',
-      originalUrl: 'https://www.maximum.com.tr/kampanyalar',
-      actualUrl: pageUrl,
+      sourceUrl: pageContent ? pageContent.url : 'https://www.maximum.com.tr/kampanyalar',
       scrapedAt: new Date().toISOString(),
-      status: pageUrl.includes('maximum.com.tr') ? 'success' : 'fallback',
       campaignCount: campaigns.length,
       campaigns: campaigns,
-      debug: pageData
+      debug: {
+        pageTitle: pageContent ? pageContent.title : null,
+        textLength: pageContent ? pageContent.bodyTextLength : 0,
+        foundElements: pageContent ? pageContent.campaignElementCount : 0
+      }
     };
     
     fs.writeFileSync('data/maximum-campaigns.json', JSON.stringify(result, null, 2));
-    console.log('💾 Veri kaydedildi: data/maximum-campaigns.json');
+    console.log('💾 Kampanyalar kaydedildi: data/maximum-campaigns.json');
+    console.log(`📊 Toplam ${campaigns.length} kampanya`);
     
-    // Özet kaydet
+    // Özet dosyası
     const summary = {
       lastUpdate: new Date().toISOString(),
       success: true,
-      message: 'Scraping tamamlandı (demo veri)',
-      banks: [{
-        name: 'Maximum',
-        status: result.status,
-        campaignCount: campaigns.length
-      }]
+      totalCampaigns: campaigns.length,
+      banks: [
+        {
+          name: 'Maximum',
+          url: result.sourceUrl,
+          campaignCount: campaigns.length,
+          status: pageLoaded ? 'success' : 'error'
+        }
+      ]
     };
     
     fs.writeFileSync('data/summary.json', JSON.stringify(summary, null, 2));
-    console.log('📊 Özet kaydedildi: data/summary.json');
+    console.log('📋 Özet kaydedildi: data/summary.json');
     
   } catch (error) {
-    console.error('❌ Scraping hatası:', error.message);
+    console.error('❌ Beklenmeyen hata:', error.message);
+    console.error('Stack:', error.stack);
     
-    // Hata durumunda bile bir şeyler kaydet
+    // Hata durumunda da data klasörü oluştur
     if (!fs.existsSync('data')) {
       fs.mkdirSync('data');
     }
     
+    // Hata dosyası
     const errorData = {
       error: true,
       message: error.message,
+      stack: error.stack,
       timestamp: new Date().toISOString()
     };
     
     fs.writeFileSync('data/error.json', JSON.stringify(errorData, null, 2));
-    console.log('📝 Hata kaydedildi: data/error.json');
+    console.log('📝 Hata detayları kaydedildi: data/error.json');
+    
+    // Yine de boş bir kampanya dosyası oluştur
+    const emptyResult = {
+      success: false,
+      error: error.message,
+      bank: 'Maximum',
+      campaigns: [],
+      scrapedAt: new Date().toISOString()
+    };
+    
+    fs.writeFileSync('data/maximum-campaigns.json', JSON.stringify(emptyResult, null, 2));
     
   } finally {
     await browser.close();
@@ -207,10 +223,13 @@ async function scrapeMaximum() {
   }
 }
 
-// Çalıştır
+// Ana fonksiyonu çalıştır
+console.log('🎬 Scraper başlatılıyor...');
+
 scrapeMaximum()
   .then(() => {
-    console.log('✨ İşlem tamamlandı!');
+    console.log('✨ İşlem başarıyla tamamlandı!');
+    console.log('📂 data/ klasörünü kontrol edin');
     process.exit(0);
   })
   .catch(error => {
