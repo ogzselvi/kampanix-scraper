@@ -73,47 +73,29 @@ async function scrapeMaximum() {
     const campaignLinks = await page.evaluate(() => {
       const links = new Set();
       
-      // Kategori sayfalarını tanımla (bunları HARİÇ TUT)
       const categoryPages = [
-        '/bireysel',
-        '/ticari',
-        '/seyahat-kampanyalari',
-        '/ets-kampanyalari',
-        '/akaryakit-kampanyalari',
-        '/giyim-aksesuar-kampanyalari',
-        '/market-kampanyalari',
-        '/elektronik-kampanyalari',
-        '/beyaz-esya-kampanyalari',
-        '/mobilya-dekorasyon-kampanyalari',
-        '/egitim-kirtasiye-kampanyalari',
-        '/online-alisveris-ve-eticaret-kampanyalari',
-        '/otomotiv-kampanyalari',
-        '/vergi-odemeleri',
-        '/diger-kampanyalar',
-        '/yeme-icme-restaurant-kampanyalari',
-        '/maximum-pati-kart-kampanyalari',
-        '/arac-kiralama-kampanyalari',
-        '/bankamatik-kampanyalari'
+        '/bireysel', '/ticari', '/seyahat-kampanyalari', '/ets-kampanyalari',
+        '/akaryakit-kampanyalari', '/giyim-aksesuar-kampanyalari', '/market-kampanyalari',
+        '/elektronik-kampanyalari', '/beyaz-esya-kampanyalari', '/mobilya-dekorasyon-kampanyalari',
+        '/egitim-kirtasiye-kampanyalari', '/online-alisveris-ve-eticaret-kampanyalari',
+        '/otomotiv-kampanyalari', '/vergi-odemeleri', '/diger-kampanyalar',
+        '/yeme-icme-restaurant-kampanyalari', '/maximum-pati-kart-kampanyalari',
+        '/arac-kiralama-kampanyalari', '/bankamatik-kampanyalari'
       ];
       
-      // Tüm kampanya linklerini al
       const allLinks = document.querySelectorAll('a[href*="/kampanyalar/"]');
       
       allLinks.forEach(link => {
         const href = link.href;
         
-        // Ana sayfa ve anchor'ları hariç tut
         if (href.endsWith('/kampanyalar') || href.includes('#')) {
           return;
         }
         
-        // Kategori sayfası mı kontrol et
         const isCategory = categoryPages.some(category => 
-          href.endsWith(category) || 
-          href.endsWith(category + '/')
+          href.endsWith(category) || href.endsWith(category + '/')
         );
         
-        // Kategori değilse ve /kampanyalar/ içeriyorsa ekle
         if (!isCategory && href.includes('/kampanyalar/')) {
           links.add(href);
         }
@@ -122,18 +104,8 @@ async function scrapeMaximum() {
       return Array.from(links);
     });
     
-    console.log(`✅ ${campaignLinks.length} kampanya linki bulundu`);
-    
-    // Unique yap (aynı linkler birden fazla kez gelmiş olabilir)
     const uniqueCampaignLinks = [...new Set(campaignLinks)];
-    console.log(`📊 ${uniqueCampaignLinks.length} benzersiz kampanya`);
-    
-    // İlk 5 linki göster
-    console.log('\n📌 İlk 5 kampanya:');
-    uniqueCampaignLinks.slice(0, 5).forEach((link, i) => {
-      const name = link.split('/').pop();
-      console.log(`${i + 1}. ${name}`);
-    });
+    console.log(`✅ ${uniqueCampaignLinks.length} kampanya bulundu`);
     
     // ============= HER KAMPANYANIN DETAYINI ÇEK =============
     const allCampaigns = [];
@@ -143,9 +115,7 @@ async function scrapeMaximum() {
     
     for (let i = 0; i < totalToScrape; i++) {
       const link = uniqueCampaignLinks[i];
-      const campaignName = link.split('/').pop();
       
-      // İlerleme göstergesi
       if ((i + 1) % 10 === 0 || i === 0) {
         console.log(`📊 İlerleme: ${i + 1}/${totalToScrape}`);
       }
@@ -156,23 +126,24 @@ async function scrapeMaximum() {
           timeout: 30000
         });
         
-        await sleep(1000);
+        await sleep(1500);
         
         const campaignDetail = await page.evaluate((url) => {
-          const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
+          const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ').replace(/​/g, '') : '';
           
           // Başlık
           let title = '';
           const h1 = document.querySelector('h1');
           if (h1) title = cleanText(h1.innerText);
           
+          // Tüm metni al (detayları bulmak için)
+          const bodyText = document.body.innerText || '';
+          const cleanBodyText = bodyText.replace(/​/g, ''); // Invisible karakterleri temizle
+          
           // Kampanya tarihleri
           let startDate = '';
           let endDate = '';
-          const bodyText = document.body.innerText || '';
-          
-          // "KAMPANYA TARİHLERİ" bölümünü bul
-          const dateMatch = bodyText.match(/KAMPANYA TARİHLERİ[:\s]*([^\n]+)/i);
+          const dateMatch = cleanBodyText.match(/KAMPANYA TARİHLERİ[:\s]*([^\n]+)/i);
           if (dateMatch) {
             const dateText = dateMatch[1];
             const dates = dateText.match(/\d{1,2}[\.\/]\d{1,2}[\.\/]\d{4}/g);
@@ -184,33 +155,71 @@ async function scrapeMaximum() {
             }
           }
           
-          // Açıklama
+          // Ana açıklama - Kampanya Ayrıntıları bölümünden
           let description = '';
-          const detailsMatch = bodyText.match(/Kampanya Ayrıntıları[:\s]*([^​\n]+(?:\n[^​\n]+){0,3})/i);
+          let extraDescription = '';
+          
+          const detailsMatch = cleanBodyText.match(/Kampanya Ayrıntıları(.+?)(?:Kampanyaya dahil olan kartlar|Kampanyaya dâhil olan kartlar|Kampanyaya dahil olmayan|Ek koşullar|Ödül kullanımı|Katılmak için)/si);
           if (detailsMatch) {
-            description = cleanText(detailsMatch[1]).substring(0, 500);
-          } else {
-            // İlk uzun paragrafı al
-            const paragraphs = document.querySelectorAll('p');
-            for (const p of paragraphs) {
-              const text = cleanText(p.innerText);
-              if (text.length > 100) {
-                description = text.substring(0, 500);
-                break;
+            const fullDetails = cleanText(detailsMatch[1]);
+            // İlk paragrafı ana açıklama olarak al
+            const sentences = fullDetails.split('.');
+            if (sentences.length > 2) {
+              description = sentences.slice(0, 2).join('.') + '.';
+              extraDescription = sentences.slice(2).join('.').trim();
+              if (extraDescription && !extraDescription.endsWith('.')) {
+                extraDescription += '.';
               }
+            } else {
+              description = fullDetails;
             }
           }
           
-          // Görsel
+          // Dahil olan kartlar
+          let includedCards = '';
+          const includedMatch = cleanBodyText.match(/(?:Kampanyaya dahil olan kartlar|Kampanyaya dâhil olan kartlar)[:\s]*([^.]+\.)/i);
+          if (includedMatch) {
+            includedCards = cleanText(includedMatch[1]);
+          }
+          
+          // Dahil olmayan kartlar ve işlemler
+          let excludedCards = '';
+          const excludedMatch = cleanBodyText.match(/(?:Kampanyaya dahil olmayan kartlar ve işlemler|Kampanyaya dâhil olmayan kartlar ve işlemler)[:\s]*([^.]+\.)/i);
+          if (excludedMatch) {
+            excludedCards = cleanText(excludedMatch[1]);
+          }
+          
+          // Ek koşullar
+          let additionalConditions = '';
+          const conditionsMatch = cleanBodyText.match(/(?:Ek koşullar|Ek Koşullar)[:\s]*(.+?)(?:Kampanya|Türkiye İş Bankası|$)/si);
+          if (conditionsMatch) {
+            additionalConditions = cleanText(conditionsMatch[1]).substring(0, 1000);
+          }
+          
+          // Görsel - kampanya görseli
           let image = '';
           const images = document.querySelectorAll('img');
           for (const img of images) {
-            if (img.src && 
-                (img.src.includes('kampanya') || 
-                 img.src.includes('580x460') ||
-                 img.alt?.toLowerCase().includes('kampanya'))) {
-              image = img.src;
+            const src = img.src || '';
+            // Kampanya görsellerini bul (580x460 boyutunda olanlar genelde kampanya görseli)
+            if (src && (
+              src.includes('kampanyagorselleri') ||
+              src.includes('580x460') ||
+              src.includes('kampanya') && !src.includes('menu') && !src.includes('PublishingImages/menu')
+            )) {
+              image = src;
               break;
+            }
+          }
+          
+          // Eğer görsel bulunamadıysa, en büyük görseli al
+          if (!image) {
+            let maxWidth = 0;
+            for (const img of images) {
+              if (img.width > maxWidth && img.src && !img.src.includes('logo') && !img.src.includes('icon')) {
+                maxWidth = img.width;
+                image = img.src;
+              }
             }
           }
           
@@ -220,7 +229,6 @@ async function scrapeMaximum() {
           if (discountMatch) {
             discountRate = discountMatch[1] + '%';
           } else {
-            // TL indirimi ara
             const tlMatch = (title + ' ' + description).match(/(\d+\.?\d*)\s*TL/i);
             if (tlMatch) {
               discountRate = tlMatch[1] + ' TL';
@@ -237,32 +245,34 @@ async function scrapeMaximum() {
           return {
             url: url,
             title: title || 'Başlık bulunamadı',
-            description: description || '',
+            description: description || 'Açıklama bulunamadı',
+            extraDescription: extraDescription,
+            includedCards: includedCards,
+            excludedCards: excludedCards,
+            additionalConditions: additionalConditions,
             startDate: startDate,
             endDate: endDate || 'Belirtilmemiş',
             discountRate: discountRate,
             merchant: merchant,
-            image: image,
+            image: image || '',
             scrapedAt: new Date().toISOString()
           };
         }, link);
         
         allCampaigns.push(campaignDetail);
         
-        // Her 10 kampanyada bir detay göster
         if ((i + 1) % 10 === 0) {
           console.log(`   ✅ Son: "${campaignDetail.title.substring(0, 40)}..."`);
         }
         
-        // Rate limiting
         await sleep(500 + Math.random() * 500);
         
       } catch (error) {
-        console.log(`   ❌ Hata (${campaignName}): ${error.message}`);
+        console.log(`   ❌ Hata: ${error.message}`);
         
         allCampaigns.push({
           url: link,
-          title: campaignName,
+          title: link.split('/').pop(),
           error: error.message,
           scrapedAt: new Date().toISOString()
         });
@@ -290,7 +300,8 @@ async function scrapeMaximum() {
         failed: allCampaigns.length - successfulCampaigns.length,
         withDates: successfulCampaigns.filter(c => c.endDate && c.endDate !== 'Belirtilmemiş').length,
         withImages: successfulCampaigns.filter(c => c.image).length,
-        withDiscounts: successfulCampaigns.filter(c => c.discountRate).length
+        withDiscounts: successfulCampaigns.filter(c => c.discountRate).length,
+        withFullDetails: successfulCampaigns.filter(c => c.includedCards || c.excludedCards).length
       },
       campaigns: allCampaigns
     };
@@ -300,38 +311,11 @@ async function scrapeMaximum() {
     console.log('\n📊 ÖZET:');
     console.log(`✅ Toplam: ${result.statistics.totalScraped} kampanya`);
     console.log(`   - Başarılı: ${result.statistics.successful}`);
-    console.log(`   - Hatalı: ${result.statistics.failed}`);
-    console.log(`   - Tarihli: ${result.statistics.withDates}`);
+    console.log(`   - Detaylı bilgi: ${result.statistics.withFullDetails}`);
     console.log(`   - Görselli: ${result.statistics.withImages}`);
-    console.log(`   - İndirimli: ${result.statistics.withDiscounts}`);
-    
-    // Summary dosyası
-    const summary = {
-      lastUpdate: new Date().toISOString(),
-      success: true,
-      banks: [{
-        name: 'Maximum',
-        campaignCount: successfulCampaigns.length,
-        status: 'success'
-      }]
-    };
-    
-    fs.writeFileSync('data/summary.json', JSON.stringify(summary, null, 2));
     
   } catch (error) {
     console.error('❌ Ana hata:', error.message);
-    
-    if (!fs.existsSync('data')) {
-      fs.mkdirSync('data');
-    }
-    
-    fs.writeFileSync('data/error.json', JSON.stringify({
-      error: true,
-      message: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    }, null, 2));
-    
   } finally {
     await browser.close();
     console.log('\n🏁 İşlem tamamlandı!');
