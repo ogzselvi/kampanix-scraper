@@ -1,13 +1,9 @@
 {
-  "lastUpdate": "2025-09-03T06:30:33.943Z",
+  "lastUpdate": "2025-09-03T20:37:20.067Z",
   "success": true,
-  "totalCampaigns": 10,
-  "banks": [
-    {
-      "name": "Maximum",
-      "url": "https://www.maximum.com.tr/kampanyalar",
-      "campaignCount": 10,
-      "status": "success"
-    }
-  ]
+  "statistics": {
+    "totalLinksFound": 140,
+    "detailsScraped": 50,
+    "successRate": "100%"
+  }
 }
