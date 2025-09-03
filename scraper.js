@@ -35,27 +35,20 @@ async function scrapeMaximum() {
     console.log('🔍 "Daha Fazla Göster" butonları aranıyor...');
     
     let loadMoreCount = 0;
-    let previousHeight = 0;
     
-    while (loadMoreCount < 20) { // Maksimum 20 kez dene
-      // Sayfayı aşağı kaydır
+    while (loadMoreCount < 10) {
+      // Scroll down
       await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight);
       });
       await sleep(2000);
       
-      // "Daha Fazla Göster" butonunu bul ve tıkla
+      // Try to click load more button
       const buttonClicked = await page.evaluate(() => {
-        // Tüm butonları kontrol et
         const buttons = document.querySelectorAll('button, a, div[role="button"], span');
         for (const btn of buttons) {
           const text = (btn.innerText || btn.textContent || '').toLowerCase();
-          if (text.includes('daha fazla') || 
-              text.includes('daha çok') || 
-              text.includes('load more') ||
-              text.includes('göster')) {
-            
-            // Görünür mü kontrol et
+          if (text.includes('daha fazla') || text.includes('daha çok') || text.includes('göster')) {
             const rect = btn.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {
               btn.click();
@@ -71,82 +64,166 @@ async function scrapeMaximum() {
         console.log(`✅ "Daha Fazla Göster" ${loadMoreCount}. kez tıklandı`);
         await sleep(3000);
       } else {
-        // Sayfa yüksekliği değişti mi kontrol et
-        const currentHeight = await page.evaluate(() => document.body.scrollHeight);
-        if (currentHeight === previousHeight) {
-          console.log('✅ Tüm kampanyalar yüklendi');
-          break;
-        }
-        previousHeight = currentHeight;
-        await sleep(2000);
+        console.log('✅ Tüm kampanyalar yüklendi (buton bulunamadı)');
+        break;
       }
     }
     
-    // ============= KAMPANYA LİNKLERİNİ TOPLA =============
-    console.log('📝 Kampanya linkleri toplanıyor...');
+    // ============= DEBUG: TÜM LİNKLERİ GÖSTER =============
+    console.log('\n🔍 DEBUG: Sayfadaki tüm linkler analiz ediliyor...\n');
+    
+    const debugInfo = await page.evaluate(() => {
+      // Önce tüm /kampanyalar/ içeren linkleri bul
+      const allLinks = document.querySelectorAll('a[href*="/kampanyalar/"]');
+      
+      const linkAnalysis = {
+        totalLinks: allLinks.length,
+        allHrefs: [],
+        categorizedLinks: {
+          categories: [],
+          campaigns: [],
+          other: []
+        }
+      };
+      
+      // Kategori patternleri
+      const categoryPatterns = [
+        'bireysel', 'ticari', 'seyahat-kampanyalari', 'ets-kampanyalari',
+        'akaryakit-kampanyalari', 'giyim-aksesuar', 'market-kampanyalari',
+        'elektronik-kampanyalari', 'beyaz-esya', 'mobilya-dekorasyon',
+        'egitim-kirtasiye', 'online-alisveris', 'otomotiv-kampanyalari',
+        'vergi-odemeleri', 'diger-kampanyalar', 'yeme-icme', 'arac-kiralama',
+        'bankamatik-kampanyalari', 'pati-kart'
+      ];
+      
+      allLinks.forEach(link => {
+        const href = link.href;
+        linkAnalysis.allHrefs.push(href);
+        
+        // Kategori mi kontrol et
+        const isCategory = categoryPatterns.some(pattern => 
+          href.toLowerCase().includes(pattern)
+        );
+        
+        if (isCategory) {
+          linkAnalysis.categorizedLinks.categories.push(href);
+        } else if (href.split('/').filter(s => s).length > 4) {
+          // URL'de en az 5 segment varsa muhtemelen gerçek kampanya
+          linkAnalysis.categorizedLinks.campaigns.push(href);
+        } else {
+          linkAnalysis.categorizedLinks.other.push(href);
+        }
+      });
+      
+      return linkAnalysis;
+    });
+    
+    console.log(`📊 TOPLAM LİNK SAYISI: ${debugInfo.totalLinks}`);
+    console.log(`\n📁 KATEGORİ LİNKLERİ (${debugInfo.categorizedLinks.categories.length} adet):`);
+    debugInfo.categorizedLinks.categories.slice(0, 5).forEach(link => {
+      console.log(`   - ${link}`);
+    });
+    
+    console.log(`\n🎯 KAMPANYA LİNKLERİ (${debugInfo.categorizedLinks.campaigns.length} adet):`);
+    debugInfo.categorizedLinks.campaigns.slice(0, 10).forEach(link => {
+      console.log(`   - ${link}`);
+    });
+    
+    console.log(`\n❓ DİĞER LİNKLER (${debugInfo.categorizedLinks.other.length} adet):`);
+    debugInfo.categorizedLinks.other.slice(0, 5).forEach(link => {
+      console.log(`   - ${link}`);
+    });
+    
+    // ============= KAMPANYA LİNKLERİNİ AL (BASİTLEŞTİRİLMİŞ) =============
+    console.log('\n📝 Gerçek kampanya linkleri seçiliyor...');
     
     const campaignLinks = await page.evaluate(() => {
       const links = new Set();
       
-      // Tüm linkleri topla
+      // Basit yaklaşım: Tüm /kampanyalar/ linklerini al
       const allLinks = document.querySelectorAll('a[href*="/kampanyalar/"]');
+      
+      // Sadece basit kategori isimlerini filtrele
+      const excludeKeywords = [
+        'bireysel', 'ticari', 'kampanyalari' // sadece genel kategori isimleri
+      ];
       
       allLinks.forEach(link => {
         const href = link.href;
+        const lastSegment = href.split('/').filter(s => s).pop() || '';
         
-        // Filtreleme: Gerçek kampanya linkleri
-        if (href && 
-            href.includes('maximum.com.tr/kampanyalar/') &&
-            !href.endsWith('/kampanyalar') && // Ana sayfa değil
-            !href.includes('#') && // Anchor değil
-            href.split('/').length > 5) { // En az 5 segment (gerçek kampanya)
-          
-          // Kategori sayfalarını filtrele
-          const excludePatterns = [
-            '/bireysel',
-            '/ticari',
-            '/seyahat-kampanyalari',
-            '/ets-kampanyalari',
-            '/akaryakit-kampanyalari',
-            '/giyim-aksesuar-kampanyalari',
-            '/market-kampanyalari',
-            '/elektronik-kampanyalari',
-            '/beyaz-esya-kampanyalari',
-            '/mobilya-dekorasyon-kampanyalari',
-            '/egitim-kirtasiye-kampanyalari',
-            '/online-alisveris',
-            '/otomotiv-kampanyalari',
-            '/vergi-odemeleri',
-            '/diger-kampanyalar',
-            '/yeme-icme-restaurant',
-            '/arac-kiralama-kampanyalari',
-            '/bankamatik-kampanyalari',
-            '/maximum-pati-kart'
-          ];
-          
-          const isCategory = excludePatterns.some(pattern => href.includes(pattern));
-          
-          if (!isCategory) {
-            links.add(href);
-          }
+        // Son segment sadece kategori ismi değilse ekle
+        const isSimpleCategory = excludeKeywords.some(keyword => 
+          lastSegment === keyword || lastSegment.endsWith('-kampanyalari')
+        );
+        
+        if (!isSimpleCategory && href.includes('/kampanyalar/') && lastSegment.length > 10) {
+          links.add(href);
         }
       });
       
       return Array.from(links);
     });
     
-    console.log(`✅ ${campaignLinks.length} gerçek kampanya linki bulundu`);
-    console.log('İlk 3 link:', campaignLinks.slice(0, 3));
+    console.log(`✅ ${campaignLinks.length} kampanya linki bulundu`);
     
-    // ============= HER KAMPANYANIN DETAYINI ÇEK =============
+    if (campaignLinks.length === 0) {
+      console.log('\n⚠️ HİÇ KAMPANYA LİNKİ BULUNAMADI!');
+      console.log('Alternatif yöntem deneniyor...');
+      
+      // Alternatif: Kampanya kartlarını bul
+      const alternativeLinks = await page.evaluate(() => {
+        const links = [];
+        
+        // Farklı selektorlar dene
+        const selectors = [
+          '.campaign-card a',
+          '.kampanya-item a',
+          'article a',
+          'div[class*="campaign"] a',
+          'div[class*="kampanya"] a',
+          'a[href*="maximum.com.tr/kampanyalar/"]'
+        ];
+        
+        for (const selector of selectors) {
+          const elements = document.querySelectorAll(selector);
+          console.log(`Selector "${selector}" ile ${elements.length} element bulundu`);
+          
+          elements.forEach(el => {
+            if (el.href && !links.includes(el.href)) {
+              links.push(el.href);
+            }
+          });
+        }
+        
+        // Unique yap ve filtrele
+        return [...new Set(links)].filter(href => 
+          href.includes('/kampanyalar/') && 
+          href.split('/').length > 5
+        );
+      });
+      
+      if (alternativeLinks.length > 0) {
+        console.log(`✅ Alternatif yöntemle ${alternativeLinks.length} link bulundu`);
+        campaignLinks.push(...alternativeLinks);
+      }
+    }
+    
+    // İlk 5 linki göster
+    console.log('\n📌 İlk 5 kampanya linki:');
+    campaignLinks.slice(0, 5).forEach((link, i) => {
+      console.log(`${i + 1}. ${link}`);
+    });
+    
+    // ============= KAMPANYA DETAYLARINI AL =============
     const allCampaigns = [];
-    const totalCampaigns = campaignLinks.length;
+    const maxToScrape = Math.min(campaignLinks.length, 5); // Test için sadece ilk 5
     
-    console.log(`🎯 ${totalCampaigns} kampanyanın detayı alınacak...`);
+    console.log(`\n🎯 Test için ilk ${maxToScrape} kampanya alınacak...`);
     
-    for (let i = 0; i < totalCampaigns; i++) {
+    for (let i = 0; i < maxToScrape; i++) {
       const link = campaignLinks[i];
-      console.log(`📍 [${i + 1}/${totalCampaigns}] İşleniyor...`);
+      console.log(`\n📍 [${i + 1}/${maxToScrape}] ${link.split('/').pop()}`);
       
       try {
         await page.goto(link, {
@@ -156,198 +233,65 @@ async function scrapeMaximum() {
         
         await sleep(1500);
         
-        // Kampanya detaylarını al
         const campaignDetail = await page.evaluate((url) => {
           const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
           
           // Başlık
-          let title = '';
           const h1 = document.querySelector('h1');
-          if (h1) title = cleanText(h1.innerText);
+          const title = h1 ? cleanText(h1.innerText) : 'Başlık bulunamadı';
           
-          // Kampanya bitiş tarihi - daha akıllı arama
-          let endDate = '';
-          const bodyText = document.body.innerText || '';
-          
-          // Farklı tarih formatlarını ara
-          const datePatterns = [
-            /(\d{1,2}[\.\/]\d{1,2}[\.\/]\d{4})/g, // 31.12.2025 veya 31/12/2025
-            /(\d{1,2})\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)\s+(\d{4})/gi,
-            /SON\s+(\d+)\s+GÜN/i // "SON 27 GÜN" gibi
-          ];
-          
-          // "KAMPANYA TARİHLERİ" bölümünü bul
-          const campaignDateMatch = bodyText.match(/KAMPANYA TARİHLERİ[:\s]*([^\n]+)/i);
-          if (campaignDateMatch) {
-            const dateText = campaignDateMatch[1];
-            // İkinci tarihi al (bitiş tarihi)
-            const dates = dateText.match(/\d{1,2}[\.\/]\d{1,2}[\.\/]\d{4}/g);
-            if (dates && dates.length > 1) {
-              endDate = dates[dates.length - 1];
-            } else if (dates && dates.length === 1) {
-              endDate = dates[0];
-            }
-          }
-          
-          // Hala bulunamadıysa diğer patternleri dene
-          if (!endDate) {
-            for (const pattern of datePatterns) {
-              const matches = bodyText.match(pattern);
-              if (matches && matches.length > 0) {
-                endDate = matches[matches.length - 1];
-                break;
-              }
-            }
-          }
-          
-          // Açıklama - "Kampanya Ayrıntıları" bölümünü bul
-          let description = '';
-          const detailsMatch = bodyText.match(/Kampanya Ayrıntıları[:\s]*([^​]+?)(?:Kampanyaya dahil olan kartlar|Kampanya koşulları|Ek koşullar|$)/i);
-          if (detailsMatch) {
-            description = cleanText(detailsMatch[1]).substring(0, 500); // İlk 500 karakter
-          }
-          
-          // Açıklama bulunamadıysa, ilk paragrafı al
-          if (!description) {
-            const paragraphs = document.querySelectorAll('p');
-            for (const p of paragraphs) {
-              const text = cleanText(p.innerText);
-              if (text.length > 50 && !text.includes('KAMPANYA TARİH')) {
-                description = text.substring(0, 500);
-                break;
-              }
-            }
-          }
-          
-          // Kampanya görseli
-          let image = '';
-          const images = document.querySelectorAll('img');
-          for (const img of images) {
-            if (img.src && 
-                (img.src.includes('kampanya') || 
-                 img.src.includes('580x460') ||
-                 img.width > 200)) {
-              image = img.src;
-              break;
-            }
-          }
-          
-          // Merchant bilgisi (başlıktan çıkar)
-          let merchant = '';
-          if (title.includes("'")) {
-            const merchantMatch = title.match(/([^']+)'(?:de|da|te|ta|den|dan)/);
-            if (merchantMatch) merchant = merchantMatch[1].trim();
-          }
-          
-          // İndirim oranı (başlık veya açıklamadan)
-          let discountRate = '';
-          const discountMatch = (title + ' ' + description).match(/%(\d+)/);
-          if (discountMatch) discountRate = discountMatch[1] + '%';
+          // İlk paragraf
+          const firstP = document.querySelector('p');
+          const description = firstP ? cleanText(firstP.innerText).substring(0, 200) : '';
           
           return {
             url: url,
-            title: title || 'Başlık bulunamadı',
-            description: description || 'Açıklama bulunamadı',
-            endDate: endDate || 'Belirtilmemiş',
-            merchant: merchant || 'Maximum',
-            discountRate: discountRate || '',
-            image: image || '',
+            title: title,
+            description: description,
             scrapedAt: new Date().toISOString()
           };
         }, link);
         
+        console.log(`   ✅ "${campaignDetail.title.substring(0, 50)}..."`);
         allCampaigns.push(campaignDetail);
         
-        // İlerleme raporu
-        if ((i + 1) % 10 === 0) {
-          console.log(`📊 İlerleme: ${i + 1}/${totalCampaigns} kampanya işlendi`);
-          console.log(`   Son kampanya: ${campaignDetail.title.substring(0, 50)}...`);
-        }
-        
-        // Rate limiting
-        await sleep(500 + Math.random() * 1000);
-        
       } catch (error) {
-        console.log(`❌ Kampanya detayı alınamadı: ${error.message}`);
-        allCampaigns.push({
-          url: link,
-          title: 'Hata',
-          error: error.message,
-          scrapedAt: new Date().toISOString()
-        });
+        console.log(`   ❌ Hata: ${error.message}`);
       }
     }
     
     // ============= VERİYİ KAYDET =============
-    console.log('💾 Veriler kaydediliyor...');
-    
     if (!fs.existsSync('data')) {
       fs.mkdirSync('data');
     }
     
     const result = {
-      success: true,
-      bank: 'Maximum',
-      url: 'https://www.maximum.com.tr/kampanyalar',
-      scrapedAt: new Date().toISOString(),
-      totalCampaignsFound: campaignLinks.length,
+      debug: true,
+      debugInfo: debugInfo,
+      campaignLinksFound: campaignLinks.length,
       campaignsScraped: allCampaigns.length,
-      successfulCampaigns: allCampaigns.filter(c => !c.error).length,
-      campaigns: allCampaigns
+      sampleCampaigns: allCampaigns
     };
     
-    fs.writeFileSync('data/maximum-campaigns.json', JSON.stringify(result, null, 2));
-    console.log(`✅ ${allCampaigns.length} kampanya kaydedildi`);
-    console.log(`   - Başarılı: ${result.successfulCampaigns}`);
-    console.log(`   - Hatalı: ${allCampaigns.filter(c => c.error).length}`);
+    fs.writeFileSync('data/debug-output.json', JSON.stringify(result, null, 2));
+    console.log('\n💾 Debug bilgileri data/debug-output.json dosyasına kaydedildi');
     
-    // Özet
-    const summary = {
-      lastUpdate: new Date().toISOString(),
-      success: true,
-      bank: 'Maximum',
-      statistics: {
-        totalFound: campaignLinks.length,
-        totalScraped: allCampaigns.length,
-        successful: result.successfulCampaigns,
-        withDates: allCampaigns.filter(c => c.endDate && c.endDate !== 'Belirtilmemiş').length,
-        withImages: allCampaigns.filter(c => c.image).length,
-        withDiscounts: allCampaigns.filter(c => c.discountRate).length
-      }
-    };
-    
-    fs.writeFileSync('data/summary.json', JSON.stringify(summary, null, 2));
-    console.log('📊 İstatistikler:');
-    console.log(`   - Tarihli: ${summary.statistics.withDates}`);
-    console.log(`   - Görselli: ${summary.statistics.withImages}`);
-    console.log(`   - İndirim oranlı: ${summary.statistics.withDiscounts}`);
+    // Screenshot al
+    await page.screenshot({ path: 'debug-screenshot.png', fullPage: false });
+    console.log('📸 Screenshot: debug-screenshot.png');
     
   } catch (error) {
     console.error('❌ Ana hata:', error.message);
-    
-    if (!fs.existsSync('data')) {
-      fs.mkdirSync('data');
-    }
-    
-    fs.writeFileSync('data/error.json', JSON.stringify({
-      error: true,
-      message: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    }, null, 2));
-    
   } finally {
     await browser.close();
-    console.log('🏁 Browser kapatıldı');
+    console.log('\n🏁 Browser kapatıldı');
   }
 }
 
 // Başlat
-console.log('🎬 Maximum kampanya scraper başlatılıyor...');
-
 scrapeMaximum()
   .then(() => {
-    console.log('✨ Tüm işlemler tamamlandı!');
+    console.log('✨ Debug tamamlandı!');
   })
   .catch(error => {
     console.error('💥 Fatal error:', error);
