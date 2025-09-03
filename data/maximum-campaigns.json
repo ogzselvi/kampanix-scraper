@@ -1,0 +1,94 @@
+{
+  "success": true,
+  "bank": "Maximum",
+  "sourceUrl": "https://www.maximum.com.tr/kampanyalar",
+  "scrapedAt": "2025-09-03T06:30:33.943Z",
+  "campaignCount": 10,
+  "campaigns": [
+    {
+      "id": "campaign-1",
+      "title": "BİREYSEL",
+      "description": "BİREYSEL\nTİCARİ\n-\nAna Sayfa  \n Bireysel Kart Kampanyaları  \nBireysel Kart Kampanyaları\nBaşa Dön\nBenim Dünyam Kampanyalarla Dolu\n\n\n112\nSon 27 Gün\nMaximum’dan ETS’deki Seçili Otellerde Anında %5 Ek İndi",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-2",
+      "title": "Kampanya 2",
+      "description": "\n\tBireysel Kart Kampanyaları | Maximum\n\n\n\n      \n            \n       \n\n(function (w, d, s, l, i) {\n    w[l] = w[l] || []; w[l].push({\n        'gtm.start':\n        new Date().getTime(), event: 'gtm.js'",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-3",
+      "title": "Kampanya 3",
+      "description": "\n\tBireysel Kart Kampanyaları | Maximum\n",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-4",
+      "title": "BİREYSEL",
+      "description": "BİREYSEL\nTİCARİ\n-\nAna Sayfa  \n Bireysel Kart Kampanyaları  \nBireysel Kart Kampanyaları\nBaşa Dön\nBenim Dünyam Kampanyalarla Dolu\n\n\n112\nSon 27 Gün\nMaximum’dan ETS’deki Seçili Otellerde Anında %5 Ek İndi",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-5",
+      "title": "BİREYSEL",
+      "description": "BİREYSEL\nTİCARİ\n-\nAna Sayfa  \n Bireysel Kart Kampanyaları  \nBireysel Kart Kampanyaları\nBaşa Dön\nBenim Dünyam Kampanyalarla Dolu\n\n\n112\nSon 27 Gün\nMaximum’dan ETS’deki Seçili Otellerde Anında %5 Ek İndi",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-6",
+      "title": "Kampanya 6",
+      "description": "\n//<![CDATA[\nvar MSOWebPartPageFormName = 'aspnetForm';\nvar g_presenceEnabled = true;\nvar g_wsaEnabled = false;\n\nvar g_correlationId = '1c07c2a1-9ab1-b0f0-a9e5-fddb76e7e066';\nvar g_wsaQoSEnabled = fal",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-7",
+      "title": "Kampanya 7",
+      "description": "\n//<![CDATA[\nvar L_Menu_BaseUrl=\"/kampanyalar\";\nvar L_Menu_LCID=\"1033\";\nvar L_Menu_SiteTheme=\"null\";\n//]]>\n",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-8",
+      "title": "Kampanya 8",
+      "description": "\n//<![CDATA[\nfunction WebForm_OnSubmit() {\nUpdateFormDigest('\\u002fkampanyalar', 1440000);\nreturn true;\n}\n//]]>\n",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-9",
+      "title": "Kampanya 9",
+      "description": "\n              \n                  \n                    \n                  \n                  \n              \n                 \n                 \n\n \n \n\n      \n                 \n              \n         ",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    },
+    {
+      "id": "campaign-10",
+      "title": "Kampanya 10",
+      "description": "\n                 \n                 \n\n \n \n\n      \n                 \n              \n                  \n\t\n                  \t\n                           \n                \n                  Maximum Dünya",
+      "bank": "Maximum",
+      "source": "https://www.maximum.com.tr/kampanyalar",
+      "scrapedAt": "2025-09-03T06:30:33.943Z"
+    }
+  ],
+  "debug": {
+    "pageTitle": "Bireysel Kart Kampanyaları | Maximum",
+    "textLength": 4031,
+    "foundElements": 704
+  }
+}
